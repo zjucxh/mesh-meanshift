@@ -1,0 +1,5 @@
+certifi==2020.11.8
+importlib-metadata==2.0.0
+meshio==4.3.5
+numpy==1.19.4
+zipp==3.4.0
