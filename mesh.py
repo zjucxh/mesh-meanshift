@@ -4,7 +4,8 @@ from gdist import compute_gdist as geo_dist
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import open3d as o3d
-
+from scipy import sparse
+from scipy.stats import uniform
 
 
 #o3d.geometry.TriangleMesh.compute_vertex_normals
@@ -26,7 +27,7 @@ def write_mesh(filename, mesh):
 
 # normalize mesh
 def normalize(mesh):
-    vertices = mesh.points
+    vertices = np.asarray(mesh.vertices,dtype=np.float64)
     x = vertices[:,0]
     y = vertices[:,1]
     z = vertices[:,2]
@@ -39,10 +40,11 @@ def normalize(mesh):
     x = 2.0*(x-min_x)/(max_x-min_x) - 1.0
     y = 2.0*(y-min_y)/(max_y-min_y) - 1.0
     z = 2.0*(z-min_z)/(max_z-min_z) - 1.0
-    vertices[:,0]=x
-    vertices[:,1]=y
-    vertices[:,2]=z
-    mesh.points=vertices
+    #for i in range(len(x)):
+    #    mesh.vertices(i,0) = x[i]
+    #    mesh.vertices(i,1) = y[i]
+    #    mesh.vertices(i,2) = z[i]
+
     return mesh
 
 
@@ -92,7 +94,7 @@ def max_min_args(array, samples):
     #print('max min = {0}'.format(np.argmax(min_arr)))
     return np.argmax(min_arr)
 
-def farthest_point_sampling(vertices, triangles, num_sample=15):
+def farthest_point_sampling(vertices, triangles, num_sample=25):
     vertex_indices = range(len(vertices))
     vertex_indices = np.array(vertex_indices, dtype=np.int32)
     #vertex_indices = np.random.choice(vertex_indices, 300, replace=False)
@@ -122,42 +124,60 @@ def farthest_point_sampling(vertices, triangles, num_sample=15):
         samples = np.append(samples, np.int32(max_min))
         mask[max_min] = False
     return samples
-# TODO given array of vertices and adjacency matrix, return neighbouring vertices
+# given array of vertices and adjacency matrix, return neighbouring vertices
 #def vertex_neighbors(vertices, adjacent_matrix, depths = 3):
 #    return vertices
 
-# TODO given a triangle mesh, return sparse adjacency list
-# TODO eliminate waring 
+# given a triangle mesh, return sparse adjacency 
 def sparse_adjacency_matrix(mesh):
-    vertices = np.asarray(mesh.vertices, dtype=np.float)
-    triangles = np.asarray(mesh.triangles, dtype=np.int)
-    matrix = []
-    for i in range(len(vertices)):
-        matrix.append(np.array([], dtype=np.int32))
+    vertices = np.asarray(mesh.vertices, dtype=np.float64)
+    triangles = np.asarray(mesh.triangles,dtype=np.int32)
+    # generate sparse matrix
+    row_ind = np.array([], dtype=np.int32)
+    col_ind = np.array([], dtype=np.int32)
+    data = np.array([], dtype=np.float)
     for e in triangles:
-        a, b, c = e[0], e[1], e[2]
-        matrix[a] = np.append(matrix[a], [b,c])
-        matrix[b] = np.append(matrix[b], [a,c])
-        matrix[c] = np.append(matrix[c], [a,b])
-    for e in range(len(matrix)):
-        matrix[e] = np.unique(matrix[e])
-    return matrix
+        a = np.min(e)
+        c = np.max(e)
+        b = sum(e) - a - c
+        row_ind = np.append(row_ind, [a,a,b,b,c,c])
+        col_ind = np.append(col_ind, [b,c, a,c, a,b])
+        diff = vertices[[a,a,b,b,c,c]] - vertices[[b,c,a,c,a,b]]
+        distance = np.linalg.norm(diff, axis=1)
+        data = np.append(data, distance)
+        row_ind, col_ind, data = zip(*set(zip(row_ind, col_ind, data)))
+    sparse_matrix = sparse.coo_matrix((data, (row_ind, col_ind)))
+    array_matrix = sparse_matrix.toarray()
+    sparse_matrix = sparse.coo_matrix(array_matrix)
+    return sparse_matrix
+
+def range_query(indices, adjacency, depth=3):
+    if indices.size == 0:
+        return np.array([],dtype=np.int32)
+    if depth==0:
+        return np.array([],dtype=np.int32) 
+    query = np.where(adjacency[indices][0]>=1.0e-5)[0]
+    return np.unique(np.append(query, range_query(query, adjacency, depth-1)))
+    
 
 if __name__=='__main__':
 
-   mesh = o3d.io.read_triangle_mesh('./data/half_polyhedron.obj') 
-   mesh.compute_triangle_normals()
-   mesh.compute_vertex_normals()
-
-   vertices = np.asarray(mesh.vertices,dtype=np.float64)
-   triangles = np.asarray(mesh.triangles,dtype=np.int32)
-   # if not mesh.has_vertex_normals():
-   vertex_normals = mesh.vertex_normals
-   # if not mesh.has_triangle_normals():
-   triangle_normals = mesh.triangle_normals
-   #samples = farthest_point_sampling(vertices, triangles)
-   #fps_vis(vertices, samples)
-   #o3d.visualization.draw_geometries([mesh])
-   sparse_matrix = sparse_adjacency_matrix(mesh)
-   print(np.asarray(sparse_matrix))
-   
+    mesh = o3d.io.read_triangle_mesh('./data/bunny.obj') 
+    #normalize(mesh)
+    mesh.compute_triangle_normals()
+    mesh.compute_vertex_normals()
+    vertices = np.asarray(mesh.vertices,dtype=np.float64)
+    print('length of vertices = {0}'.format(len(vertices)))
+    triangles = np.asarray(mesh.triangles,dtype=np.int32)
+    # if not mesh.has_vertex_normals():
+    vertex_normals = mesh.vertex_normals
+    # if not mesh.has_triangle_normals():
+    triangle_normals = mesh.triangle_normals
+    #samples = farthest_point_sampling(vertices, triangles)
+    #fps_vis(vertices, samples)
+    #o3d.visualization.draw_geometries([mesh])
+    sparse_matrix = sparse_adjacency_matrix(mesh)
+    #print(sparse_matrix)
+    print(sparse_matrix) 
+    query = range_query(np.array([3],dtype=np.int32), sparse_matrix.toarray(),depth=3)
+    print(query)
