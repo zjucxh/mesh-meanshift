@@ -124,7 +124,6 @@ def farthest_point_sampling(vertices, triangles, num_sample=25):
         samples = np.append(samples, np.int32(max_min))
         mask[max_min] = False
     return samples
-# given array of vertices and adjacency matrix, return neighbouring vertices
 #def vertex_neighbors(vertices, adjacent_matrix, depths = 3):
 #    return vertices
 
@@ -151,6 +150,7 @@ def sparse_adjacency_matrix(mesh):
     sparse_matrix = sparse.coo_matrix(array_matrix)
     return sparse_matrix
 
+# given array of vertices and adjacency matrix, return neighbouring vertices
 def range_query(indices, adjacency, depth=3):
     if indices.size == 0:
         return np.array([],dtype=np.int32)
