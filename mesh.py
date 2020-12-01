@@ -1,6 +1,7 @@
 import numpy as np
-import meshio
+import gdist 
 from gdist import compute_gdist as geo_dist
+from gdist import local_gdist_matrix as geo_matrix
 from matplotlib import pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import open3d as o3d
@@ -25,9 +26,8 @@ def write_mesh(filename, mesh):
             f.write(' {0}'.format(e[i]+1))
         f.write('\n')
 
-# normalize mesh
-def normalize(mesh):
-    vertices = np.asarray(mesh.vertices,dtype=np.float64)
+#TODO normalize mesh
+def normalize(vertices):
     x = vertices[:,0]
     y = vertices[:,1]
     z = vertices[:,2]
@@ -40,12 +40,10 @@ def normalize(mesh):
     x = 2.0*(x-min_x)/(max_x-min_x) - 1.0
     y = 2.0*(y-min_y)/(max_y-min_y) - 1.0
     z = 2.0*(z-min_z)/(max_z-min_z) - 1.0
-    #for i in range(len(x)):
-    #    mesh.vertices(i,0) = x[i]
-    #    mesh.vertices(i,1) = y[i]
-    #    mesh.vertices(i,2) = z[i]
-
-    return mesh
+    vertices[:,0] = x
+    vertices[:,1] = y
+    vertices[:,2] = z
+    return vertices 
 
 
 # visualize FPS algorithms
@@ -151,15 +149,19 @@ def sparse_adjacency_matrix(mesh):
     return sparse_matrix
 
 # given array of vertices and adjacency matrix, return neighbouring vertices
-def range_query(indices, adjacency, depth=3):
-    if indices.size == 0:
-        return np.array([],dtype=np.int32)
-    if depth==0:
-        return np.array([],dtype=np.int32) 
-    query = np.where(adjacency[indices][0]>=1.0e-5)[0]
-    return np.unique(np.append(query, range_query(query, adjacency, depth-1)))
+#def range_query(indices, adjacency, depth=3):
+#    if indices.size == 0:
+#        return np.array([],dtype=np.int32)
+#    if depth==0:
+#        return np.array([],dtype=np.int32) 
+#    query = np.where(adjacency[indices][0]>=1.0e-5)[0]
+#    return np.unique(np.append(query, range_query(query, adjacency, depth-1)))
     
-
+# given index of vertices, and mesh, return neighbouring vertices in specified range
+def range_query(vertices, triangles, index, radius):
+    distance = geo_dist(vertices, triangles, source_indices=np.array(index, dtype=np.int32), target_indices=None, max_distance=radius)
+    return np.where((distance<=radius)& (distance >=1.0e-6))[0]
+    
 if __name__=='__main__':
 
     mesh = o3d.io.read_triangle_mesh('./data/bunny.obj') 
@@ -176,8 +178,6 @@ if __name__=='__main__':
     #samples = farthest_point_sampling(vertices, triangles)
     #fps_vis(vertices, samples)
     #o3d.visualization.draw_geometries([mesh])
-    sparse_matrix = sparse_adjacency_matrix(mesh)
-    #print(sparse_matrix)
-    print(sparse_matrix) 
-    query = range_query(np.array([3],dtype=np.int32), sparse_matrix.toarray(),depth=3)
-    print(query)
+    neighbours = range_query(mesh, [0], 0.6)
+    print(neighbours.dtype)
+    
