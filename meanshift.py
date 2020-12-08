@@ -23,10 +23,22 @@ def kernel(vertices, triangles, vertex_normals, c, neighbours, radius):
 # Kernels
 def kernel(features, center, radius):
     return 1.0/pi * np.exp(-0.5 * np.linalg.norm(features-center/radius, axis=1)**2)
+# Given center and grad return closest point indices
+def closest_vertex_indices(x, grad, neighbours, features):
+    minimum_distance = np.Inf
+    idx = -1
+    new_x = x + grad
+    for i in range(len(features)):
+        dist = np.linalg.norm(new_x - features[i])
+        if minimum_distance >= dist:
+            minimum_distance = dist
+            idx = i
+    return neighbours[idx]
 
 # Compute gradient
 def gradient(vertices, triangles, vertex_normals, c, radius):
     neighbours = range_query(vertices, triangles, c, radius)
+    print('neighbours = {0}'.format(neighbours))
     x = vertices[c]
     npos = vertices[neighbours] # neighbouring vertex positions
     nnormals = vertex_normals[neighbours]
@@ -45,45 +57,54 @@ def gradient(vertices, triangles, vertex_normals, c, radius):
     #print(len(sum_weighted_features))
     #print(sum_weight)
     grad = sum_weight * (sum_weighted_features / sum_weight - x)
-    grad = 2.0/n/radius**(2+len(grad)) * grad
-    print(grad) 
-    print(np.linalg.norm(grad))
-    return grad 
-        
+    grad = 2.0/n/radius**(2+len(grad)) * grad 
+    #grad = 2.0/n/radius**(2) * grad * 100
+    ind = closest_vertex_indices(x, grad, neighbours, features) 
+    #print(np.linalg.norm(grad))
+    return grad, ind 
     #print(sum_weighted_features)
-
-# given a mesh, starting pints, and radius, return indices of converged vertices
-def mean_shift(mesh, starting_points, radius):
-    #TODO normalize mesh
+# Compute gradient
+#def gradient()
+# given a mesh, starting index, and radius, return indices of converged vertices
+def mean_shift(mesh, starting_ind, radius, max_iter = 20):
      
     # compute vertex normals
     mesh.compute_vertex_normals()
-    vertex_normals = mesh.vertex_normals
+    vertex_normals = np.asarray(mesh.vertex_normals, dtype=np.float64)
     # get vertices and triangles as array
     vertices = np.asarray(mesh.vertices, dtype=np.float64)
     triangles = np.asarray(mesh.triangles,dtype=np.int32)
-    # Farthest Points Sampling 
-    samples = fps(vertices, triangles)
 
+    
+    
     # Meanshift Loop
-    converged = False
-    '''
-    while True:
-        grad = gradient(vertices, triangles, vertex_normals, [0], 0.8)
-        vec = vertices[0]
-        vec = vec - 
-    '''    
     con_vertices = np.array([], dtype=np.int32)
+    cur_iter = 0 
+    grad, ind = gradient(vertices, triangles, vertex_normals, starting_points, radius)
+
+    while True:
+
+        print('grad norm = {0}'.format(np.linalg.norm(grad)))
+        if np.linalg.norm(grad) < 1.0e-6 or cur_iter >= max_iter:
+            break
+        grad, ind = gradient(vertices, triangles, vertex_normals, [ind], radius)
+        vertices[ind] = grad[0:3] + vertices[ind]
+        vertex_normals[ind] = grad[3:] + vertex_normals[ind]
+        con_vertices = np.append(con_vertices, ind)     
+        cur_iter = cur_iter+1
+        print('Iteration {0}:\n grad = {1}\n next point = {2}'.format(cur_iter, grad, ind))
     return con_vertices
 
 
 if __name__ == '__main__':
     mesh = o3d.io.read_triangle_mesh('./data/bunny.obj')
+    
 
     #converged_vertices = mean_shift(mesh, [0], 3)
     vertices = np.asarray(mesh.vertices,dtype=np.float64)
-    #vertices = normalize(vertices) 
+    vertices = normalize(vertices) 
     triangles= np.asarray(mesh.triangles, dtype=np.int32)
     mesh.compute_vertex_normals()
     vertex_normals = np.asarray(mesh.vertex_normals,dtype=np.float64)
-    gradient(vertices, triangles, vertex_normals, [0], 1.2)
+    path = mean_shift(mesh, [2], 0.2, max_iter=10)
+    print(path)
