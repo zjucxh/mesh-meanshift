@@ -14,14 +14,17 @@ def render_mesh(mesh):
 
 # compute distance from point to multiple point
 def distance(vertices, vertex_normals, src_ind=0, dst_ind = np.array([0], dtype=np.int32)):
-    src = vertices[src_ind]
-    dst = vertices[dst_ind]
-    abs_dist = np.abs(dst - src)
-    #norm_dist = np.abs(vertex_normals[dst_ind],vertex_normals[src_ind])
-
-    return np.sum(abs_dist,axis=1)
+    vsrc = vertices[src_ind]
+    vdst = vertices[dst_ind]
+    nsrc = vertex_normals[src_ind]
+    ndst = vertex_normals[dst_ind]
+    
+    vabs_dist = np.abs(vdst - vsrc)
+    nabs_dist = np.abs(ndst - nsrc)
+    
+    return np.sum(vabs_dist+nabs_dist,axis=1)
 # fetch data
-mesh = o3d.io.read_triangle_mesh('./data/garment.off')
+mesh = o3d.io.read_triangle_mesh('./data/bunny.obj')
 mesh.compute_vertex_normals()
 vertices = np.asarray(mesh.vertices,dtype=np.float64)
 triangles = np.asarray(mesh.triangles,dtype=np.int32)

@@ -8,7 +8,21 @@ import open3d as o3d
 from scipy import sparse
 from scipy.stats import uniform
 
-
+# given a obj mesh extract human body part from mesh
+def extract_human_body_part(file_name='data/shrec__1_0.obj', label=0):
+    vertex_indices = np.array([],dtype=np.int32)
+    with open(file_name, 'r') as fp:
+        for line in fp:
+            if line[0]=='e':
+                line = line[2:-1]
+                line = line.split(' ')
+                line_int = [int(e) for e in line]
+                vertex_indices = np.append(vertex_indices, line_int)
+    vertex_indices = np.reshape(vertex_indices, (-1, 3))
+    vertex_indices = vertex_indices[np.where(vertex_indices[:,2]==label)]
+    vertex_indices = np.unique(np.reshape(vertex_indices[:,0:2],(-1,)))
+    print(vertex_indices-1)
+    return vertex_indices-1
 #o3d.geometry.TriangleMesh.compute_vertex_normals
 # write mesh to obj
 def write_mesh(filename, mesh):
@@ -163,21 +177,25 @@ def range_query(vertices, triangles, index, radius):
     return np.where((distance<=radius)& (distance >=1.0e-6))[0]
     
 if __name__=='__main__':
+    file_name = './data/shrec__1_0.obj'
+    mesh = o3d.io.read_triangle_mesh(file_name) 
 
-    mesh = o3d.io.read_triangle_mesh('./data/bunny.obj') 
     #normalize(mesh)
     mesh.compute_triangle_normals()
     mesh.compute_vertex_normals()
     vertices = np.asarray(mesh.vertices,dtype=np.float64)
-    print('length of vertices = {0}'.format(len(vertices)))
     triangles = np.asarray(mesh.triangles,dtype=np.int32)
-    # if not mesh.has_vertex_normals():
     vertex_normals = mesh.vertex_normals
-    # if not mesh.has_triangle_normals():
-    triangle_normals = mesh.triangle_normals
-    #samples = farthest_point_sampling(vertices, triangles)
-    #fps_vis(vertices, samples)
-    #o3d.visualization.draw_geometries([mesh])
-    neighbours = range_query(mesh, [0], 0.6)
-    print(neighbours.dtype)
-    
+    o3d.visualization.draw_geometries([mesh])
+    indices = np.array([],dtype=np.int32)
+
+    for i in range(8):
+        ind = extract_human_body_part(file_name, i)
+
+        indices = np.append(indices, ind)
+    print(len(np.unique(indices)))
+    selected_vertices = vertices[indices]
+    pcd = o3d.geometry.PointCloud()
+    pcd.points = o3d.utility.Vector3dVector(selected_vertices)
+    o3d.visualization.draw_geometries([pcd])
+
